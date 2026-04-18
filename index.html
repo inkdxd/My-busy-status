@@ -1,153 +1,108 @@
-<!-- ⚠️ IMPORTANT: This is your ORIGINAL UI with fixes + Firebase -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Status</title>
+
+<style>
+body {
+  margin:0;
+  font-family:sans-serif;
+  color:#fff;
+  background:#020617;
+}
+.container { max-width:900px; margin:auto; padding:20px; }
+
+.list-item {
+  border:1px solid #333;
+  padding:10px;
+  margin:10px 0;
+  display:flex;
+  justify-content:space-between;
+}
+
+button { cursor:pointer; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<button onclick="toggleAuth()" id="auth-btn">LOGIN</button>
+
+<h2>Games</h2>
+<button onclick="addItem('games')">+ Add</button>
+<div id="games"></div>
+
+<h2>Anime</h2>
+<button onclick="addItem('anime')">+ Add</button>
+<div id="anime"></div>
+</div>
 
 <script type="module">
 
-// 🔐 PASSWORD
-const PASSWORD = "ookamisama";
+const PASSWORD="ookamisama";
 
-// AUTH
 function checkAuth(){
-  const logged = localStorage.getItem('auth') === 'true';
-  document.body.classList.toggle('edit-mode', logged);
-  document.getElementById('auth-btn').innerText = logged ? 'LOGOUT' : 'LOGIN';
-  return logged;
+ const logged=localStorage.getItem('auth')==='true';
+ document.getElementById('auth-btn').innerText=logged?'LOGOUT':'LOGIN';
+ return logged;
 }
 
-window.toggleAuth = function(){
-  if(checkAuth()){
-    localStorage.setItem('auth','false');
-    checkAuth();
-  } else {
-    const p = prompt("Password:");
-    if(p === PASSWORD){
-      localStorage.setItem('auth','true');
-      checkAuth();
-    } else alert("Wrong password");
-  }
+window.toggleAuth=function(){
+ if(checkAuth()){
+  localStorage.setItem('auth','false');
+ }else{
+  const p=prompt("Password:");
+  if(p===PASSWORD) localStorage.setItem('auth','true');
+ }
+ checkAuth();
 }
 
-// 🔥 FIREBASE
+// FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC7ON_TBagCxp4YHsTI2v6mWhK81f4f_Yo",
   authDomain: "my-busy-life-status.firebaseapp.com",
-  projectId: "my-busy-life-status",
-  storageBucket: "my-busy-life-status.firebasestorage.app",
-  messagingSenderId: "453294098984",
-  appId: "1:453294098984:web:a7c2824b2f019ca859831d"
+  projectId: "my-busy-life-status"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ADD ITEM
-window.addItem = async function(section, status){
-  if(!checkAuth()) return;
+window.addItem=async(type)=>{
+ if(!checkAuth()) return;
+ const name=prompt("Name");
+ if(!name) return;
+ await addDoc(collection(db,type),{name});
+}
 
-  const name = prompt("Name");
-  if(!name) return;
+window.deleteItem=async(type,id)=>{
+ await deleteDoc(doc(db,type,id));
+}
 
-  const meta = prompt("Details") || "";
-  const url = prompt("URL") || "";
-
-  await addDoc(collection(db, section), {
-    name, meta, url, status
+function listen(type){
+ onSnapshot(collection(db,type),snap=>{
+  const el=document.getElementById(type);
+  el.innerHTML="";
+  snap.forEach(d=>{
+   el.innerHTML+=`
+   <div class="list-item">
+    ${d.data().name}
+    <button onclick="deleteItem('${type}','${d.id}')">X</button>
+   </div>`;
   });
+ });
 }
 
-// DELETE
-window.deleteItem = async function(section, id){
-  if(!checkAuth()) return;
-  await deleteDoc(doc(db, section, id));
-}
-
-// EDIT
-let currentEdit = null;
-
-window.openEdit = function(section, id, data){
-  if(!checkAuth()) return;
-
-  currentEdit = {section, id};
-
-  document.getElementById('edit-name').value = data.name;
-  document.getElementById('edit-meta').value = data.meta;
-  document.getElementById('edit-url').value = data.url;
-
-  document.getElementById('edit-modal').classList.add('visible');
-}
-
-window.saveEdit = async function(){
-  await updateDoc(doc(db, currentEdit.section, currentEdit.id), {
-    name: edit-name.value,
-    meta: edit-meta.value,
-    url: edit-url.value
-  });
-  closeEdit();
-}
-
-window.closeEdit = function(){
-  document.getElementById('edit-modal').classList.remove('visible');
-}
-
-// CHANGE STATUS (🔥 NEW)
-window.changeStatus = async function(section, id, newStatus){
-  await updateDoc(doc(db, section, id), {
-    status: newStatus
-  });
-}
-
-// RENDER
-function render(section){
-  onSnapshot(collection(db, section), snap => {
-
-    const groups = {
-      current: [],
-      completed: [],
-      next: []
-    };
-
-    snap.forEach(d=>{
-      const data = d.data();
-      const id = d.id;
-      groups[data.status || 'current'].push({id, ...data});
-    });
-
-    ["current","completed","next"].forEach(status=>{
-      const container = document.getElementById(`${section}-${status}-list`);
-      if(!container) return;
-
-      container.innerHTML = groups[status].map(item => `
-        <div class="list-item">
-          <div class="item-info ${item.url ? 'has-url' : ''}"
-               ${item.url ? `onclick="window.open('${item.url}','_blank')"` : ''}>
-            <div class="item-name">${item.name}</div>
-            <div class="item-meta">${item.meta}</div>
-          </div>
-
-          <div class="item-actions">
-
-            <!-- 🔥 STATUS DROPDOWN -->
-            <select onchange="changeStatus('${section}','${item.id}', this.value)">
-              <option value="current" ${item.status==='current'?'selected':''}>Playing</option>
-              <option value="completed" ${item.status==='completed'?'selected':''}>Completed</option>
-              <option value="next" ${item.status==='next'?'selected':''}>Next</option>
-            </select>
-
-            <button onclick="openEdit('${section}','${item.id}', ${JSON.stringify(item).replace(/"/g,'&quot;')})">✏️</button>
-            <button onclick="deleteItem('${section}','${item.id}')">×</button>
-          </div>
-        </div>
-      `).join('');
-    });
-
-  });
-}
-
-// INIT
 checkAuth();
-render("games");
-render("anime");
+listen("games");
+listen("anime");
 
 </script>
+
+</body>
+</html>
