@@ -6,10 +6,47 @@
 <title>Player Status</title>
 
 <style>
-body { background:#08090d; color:#fff; font-family:sans-serif; padding:20px; }
-button { margin:5px; cursor:pointer; }
-.list-item { border:1px solid #333; padding:10px; margin:8px 0; }
+body {
+  background:#08090d;
+  color:#e2e8f0;
+  font-family:'Segoe UI',sans-serif;
+  padding:20px;
+}
 
+h2 {
+  margin-top:30px;
+  border-bottom:1px solid #333;
+  padding-bottom:5px;
+}
+
+button {
+  background:#111;
+  color:#fff;
+  border:1px solid #333;
+  padding:6px 10px;
+  cursor:pointer;
+  border-radius:4px;
+}
+button:hover { border-color:#0ff4c6; color:#0ff4c6; }
+
+.list-item {
+  background:#111;
+  border:1px solid #333;
+  border-radius:6px;
+  padding:12px;
+  margin:10px 0;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.item-info { cursor:pointer; }
+.item-name { font-weight:600; }
+.item-meta { font-size:12px; color:#888; }
+
+.actions button { margin-left:5px; }
+
+/* EDIT MODAL */
 .edit-modal {
   position:fixed; inset:0;
   background:rgba(0,0,0,0.8);
@@ -18,11 +55,19 @@ button { margin:5px; cursor:pointer; }
 .edit-modal.visible { display:flex; }
 
 .edit-box {
-  background:#111; padding:20px; border-radius:8px; width:300px;
+  background:#111;
+  padding:20px;
+  border-radius:8px;
+  width:300px;
 }
+
 .edit-box input {
-  width:100%; margin-bottom:10px; padding:8px;
-  background:#222; border:1px solid #444; color:#fff;
+  width:100%;
+  margin-bottom:10px;
+  padding:8px;
+  background:#222;
+  border:1px solid #444;
+  color:#fff;
 }
 </style>
 </head>
@@ -76,11 +121,10 @@ window.toggleAuth = function(){
   }
 }
 
-// 🔥 FIREBASE IMPORTS (CORRECT)
+// 🔥 FIREBASE
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ✅ YOUR CONFIG (CLEANED)
 const firebaseConfig = {
   apiKey: "AIzaSyC7ON_TBagCxp4YHsTI2v6mWhK81f4f_Yo",
   authDomain: "my-busy-life-status.firebaseapp.com",
@@ -90,13 +134,8 @@ const firebaseConfig = {
   appId: "1:453294098984:web:a7c2824b2f019ca859831d"
 };
 
-// INIT
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
-// COLLECTIONS
-const gamesCol = collection(db, "games");
-const animeCol = collection(db, "anime");
 
 // ADD
 window.addItem = async function(type){
@@ -108,28 +147,26 @@ window.addItem = async function(type){
   const meta = prompt("Details") || "";
   const url = prompt("URL") || "";
 
-  await addDoc(type === "games" ? gamesCol : animeCol, {
-    name, meta, url
-  });
+  await addDoc(collection(db,type), {name,meta,url});
 }
 
 // DELETE
 window.deleteItem = async function(type,id){
   if(!checkAuth()) return;
-  await deleteDoc(doc(db, type, id));
+  await deleteDoc(doc(db,type,id));
 }
 
 // EDIT
-let currentEdit = null;
+let currentEdit=null;
 
 window.openEdit = function(type,id,data){
   if(!checkAuth()) return;
 
-  currentEdit = {type,id};
+  currentEdit={type,id};
 
-  document.getElementById('edit-name').value = data.name;
-  document.getElementById('edit-meta').value = data.meta;
-  document.getElementById('edit-url').value = data.url;
+  edit-name.value=data.name;
+  edit-meta.value=data.meta;
+  edit-url.value=data.url;
 
   document.getElementById('edit-modal').classList.add('visible');
 }
@@ -139,36 +176,35 @@ window.closeEdit = function(){
 }
 
 window.saveEdit = async function(){
-  const {type,id} = currentEdit;
-
-  await updateDoc(doc(db, type, id), {
-    name: document.getElementById('edit-name').value,
-    meta: document.getElementById('edit-meta').value,
-    url: document.getElementById('edit-url').value
+  await updateDoc(doc(db,currentEdit.type,currentEdit.id),{
+    name: edit-name.value,
+    meta: edit-meta.value,
+    url: edit-url.value
   });
-
   closeEdit();
 }
 
-// REAL-TIME LISTENER
-function listen(type, containerId){
-  const col = collection(db, type);
+// RENDER
+function listen(type,id){
+  onSnapshot(collection(db,type), snap=>{
+    const el=document.getElementById(id);
+    el.innerHTML="";
 
-  onSnapshot(col, snapshot => {
-    const container = document.getElementById(containerId);
-    container.innerHTML = "";
+    snap.forEach(d=>{
+      const data=d.data();
 
-    snapshot.forEach(docSnap => {
-      const d = docSnap.data();
-
-      container.innerHTML += `
-        <div class="list-item">
-          <b onclick="${d.url ? `window.open('${d.url}','_blank')` : ''}">${d.name}</b><br>
-          <small>${d.meta}</small><br>
-
-          <button onclick="openEdit('${type}','${docSnap.id}', ${JSON.stringify(d).replace(/"/g,'&quot;')})">✏️</button>
-          <button onclick="deleteItem('${type}','${docSnap.id}')">❌</button>
+      el.innerHTML+=`
+      <div class="list-item">
+        <div class="item-info" onclick="${data.url ? `window.open('${data.url}','_blank')` : ''}">
+          <div class="item-name">${data.name}</div>
+          <div class="item-meta">${data.meta}</div>
         </div>
+
+        <div class="actions">
+          <button onclick="openEdit('${type}','${d.id}', ${JSON.stringify(data).replace(/"/g,'&quot;')})">✏️</button>
+          <button onclick="deleteItem('${type}','${d.id}')">❌</button>
+        </div>
+      </div>
       `;
     });
   });
