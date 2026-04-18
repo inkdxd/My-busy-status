@@ -8,97 +8,265 @@
 <style>
 body {
   margin:0;
-  font-family:sans-serif;
-  color:#fff;
+  font-family: 'Segoe UI', sans-serif;
   background:#020617;
+  color:#fff;
 }
-.container { max-width:900px; margin:auto; padding:20px; }
+
+/* background grid */
+body::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  background:
+    linear-gradient(rgba(0,255,200,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,200,0.05) 1px, transparent 1px);
+  background-size:40px 40px;
+  z-index:-1;
+}
+
+.container {
+  max-width:1000px;
+  margin:auto;
+  padding:20px;
+}
+
+h1 {
+  text-align:center;
+  color:#00ffc8;
+}
+
+.tabs {
+  display:flex;
+  gap:10px;
+  margin:15px 0;
+}
+
+.tab {
+  padding:6px 12px;
+  border:1px solid #333;
+  cursor:pointer;
+}
+
+.tab.active {
+  border-color:#00ffc8;
+  color:#00ffc8;
+}
 
 .list-item {
-  border:1px solid #333;
-  padding:10px;
-  margin:10px 0;
   display:flex;
   justify-content:space-between;
+  border:1px solid #333;
+  padding:10px;
+  margin:8px 0;
+  background:#111;
 }
 
-button { cursor:pointer; }
+button {
+  margin-left:5px;
+  cursor:pointer;
+}
+
+.modal {
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  display:none;
+  justify-content:center;
+  align-items:center;
+}
+
+.modal.active { display:flex; }
+
+.box {
+  background:#111;
+  padding:20px;
+  border-radius:8px;
+}
+
+.box input {
+  width:100%;
+  margin-bottom:10px;
+  padding:6px;
+  background:#222;
+  color:#fff;
+}
 </style>
 </head>
 
 <body>
 
 <div class="container">
+
+<h1>🎮 Player Status</h1>
+
 <button onclick="toggleAuth()" id="auth-btn">LOGIN</button>
 
 <h2>Games</h2>
 <button onclick="addItem('games')">+ Add</button>
-<div id="games"></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('games','current',this)">Playing</div>
+  <div class="tab" onclick="switchTab('games','completed',this)">Completed</div>
+  <div class="tab" onclick="switchTab('games','next',this)">Next</div>
+</div>
+
+<div id="games-current"></div>
+<div id="games-completed" style="display:none"></div>
+<div id="games-next" style="display:none"></div>
 
 <h2>Anime</h2>
 <button onclick="addItem('anime')">+ Add</button>
-<div id="anime"></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('anime','current',this)">Watching</div>
+  <div class="tab" onclick="switchTab('anime','completed',this)">Completed</div>
+  <div class="tab" onclick="switchTab('anime','next',this)">Next</div>
 </div>
 
-<script type="module">
+<div id="anime-current"></div>
+<div id="anime-completed" style="display:none"></div>
+<div id="anime-next" style="display:none"></div>
 
-const PASSWORD="ookamisama";
+</div>
 
-function checkAuth(){
- const logged=localStorage.getItem('auth')==='true';
- document.getElementById('auth-btn').innerText=logged?'LOGOUT':'LOGIN';
- return logged;
-}
+<!-- MODAL -->
+<div class="modal" id="modal">
+  <div class="box">
+    <input id="edit-name" placeholder="Name">
+    <input id="edit-meta" placeholder="Details">
+    <input id="edit-url" placeholder="URL">
+    <button onclick="saveEdit()">Save</button>
+    <button onclick="closeModal()">Cancel</button>
+  </div>
+</div>
 
-window.toggleAuth=function(){
- if(checkAuth()){
-  localStorage.setItem('auth','false');
- }else{
-  const p=prompt("Password:");
-  if(p===PASSWORD) localStorage.setItem('auth','true');
- }
- checkAuth();
-}
+<!-- FIREBASE STABLE -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
-// FIREBASE
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script>
 
-const firebaseConfig = {
+// FIREBASE CONFIG
+firebase.initializeApp({
   apiKey: "AIzaSyC7ON_TBagCxp4YHsTI2v6mWhK81f4f_Yo",
   authDomain: "my-busy-life-status.firebaseapp.com",
   projectId: "my-busy-life-status"
-};
+});
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = firebase.firestore();
 
-window.addItem=async(type)=>{
- if(!checkAuth()) return;
- const name=prompt("Name");
- if(!name) return;
- await addDoc(collection(db,type),{name});
+// PASSWORD
+const PASSWORD = "ookamisama";
+
+function toggleAuth(){
+  const p = prompt("Password:");
+  if(p === PASSWORD){
+    localStorage.setItem("auth","true");
+    document.getElementById("auth-btn").innerText = "LOGOUT";
+  }
 }
 
-window.deleteItem=async(type,id)=>{
- await deleteDoc(doc(db,type,id));
+function isAuth(){
+  return localStorage.getItem("auth")==="true";
 }
 
-function listen(type){
- onSnapshot(collection(db,type),snap=>{
-  const el=document.getElementById(type);
-  el.innerHTML="";
-  snap.forEach(d=>{
-   el.innerHTML+=`
-   <div class="list-item">
-    ${d.data().name}
-    <button onclick="deleteItem('${type}','${d.id}')">X</button>
-   </div>`;
+// ADD
+function addItem(type){
+  if(!isAuth()) return alert("Login first");
+
+  const name = prompt("Name");
+  if(!name) return;
+
+  const meta = prompt("Details") || "";
+  const url = prompt("URL") || "";
+
+  db.collection(type).add({name, meta, url, status:"current"});
+}
+
+// DELETE
+function deleteItem(type,id){
+  db.collection(type).doc(id).delete();
+}
+
+// EDIT
+let editRef=null;
+
+function openEdit(type,id,data){
+  editRef={type,id};
+  document.getElementById("edit-name").value=data.name;
+  document.getElementById("edit-meta").value=data.meta;
+  document.getElementById("edit-url").value=data.url;
+  modal.classList.add("active");
+}
+
+function saveEdit(){
+  db.collection(editRef.type).doc(editRef.id).update({
+    name: edit-name.value,
+    meta: edit-meta.value,
+    url: edit-url.value
   });
- });
+  closeModal();
 }
 
-checkAuth();
+function closeModal(){
+  modal.classList.remove("active");
+}
+
+// STATUS
+function changeStatus(type,id,status){
+  db.collection(type).doc(id).update({status});
+}
+
+// RENDER
+function listen(type){
+  db.collection(type).onSnapshot(snap=>{
+    const groups={current:[],completed:[],next:[]};
+
+    snap.forEach(doc=>{
+      const d=doc.data();
+      groups[d.status||"current"].push({...d,id:doc.id});
+    });
+
+    ["current","completed","next"].forEach(s=>{
+      const el=document.getElementById(`${type}-${s}`);
+      el.innerHTML="";
+
+      groups[s].forEach(item=>{
+        el.innerHTML+=`
+        <div class="list-item">
+          <div onclick="${item.url?`window.open('${item.url}')`:''}">
+            <b>${item.name}</b><br>
+            <small>${item.meta}</small>
+          </div>
+
+          <div>
+            <select onchange="changeStatus('${type}','${item.id}',this.value)">
+              <option value="current" ${item.status==='current'?'selected':''}>Now</option>
+              <option value="completed" ${item.status==='completed'?'selected':''}>Done</option>
+              <option value="next" ${item.status==='next'?'selected':''}>Next</option>
+            </select>
+            <button onclick="openEdit('${type}','${item.id}', ${JSON.stringify(item).replace(/"/g,'&quot;')})">✏️</button>
+            <button onclick="deleteItem('${type}','${item.id}')">❌</button>
+          </div>
+        </div>`;
+      });
+    });
+  });
+}
+
+// TABS
+function switchTab(type,tab,el){
+  ["current","completed","next"].forEach(s=>{
+    document.getElementById(`${type}-${s}`).style.display="none";
+  });
+  document.getElementById(`${type}-${tab}`).style.display="block";
+
+  el.parentElement.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
+}
+
+// INIT
 listen("games");
 listen("anime");
 
