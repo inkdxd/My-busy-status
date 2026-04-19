@@ -601,10 +601,8 @@
 </head>
 <body>
 
-<!-- AUTH BUTTON -->
 <button class="auth-btn" id="auth-btn" onclick="toggleAuth()">LOGIN</button>
 
-<!-- HERO -->
 <section class="hero">
   <div class="status-pill">● ONLINE</div>
   <h1>I'm <span>Gaming</span><br>Right Now</h1>
@@ -649,10 +647,8 @@
   </div>
 </section>
 
-<!-- MAIN CONTENT -->
 <main>
 
-  <!-- GAMES SECTION -->
   <div class="content-block">
     <div class="section-header">
       <div class="section-icon games">🎮</div>
@@ -681,7 +677,6 @@
     </div>
   </div>
 
-  <!-- ANIME SECTION -->
   <div class="content-block">
     <div class="section-header">
       <div class="section-icon anime">📺</div>
@@ -716,7 +711,6 @@
   <span>TFT</span> ONLY — send an invite and i'll join &nbsp;·&nbsp; everything else, don't bother
 </footer>
 
-<!-- EDIT MODAL -->
 <div class="modal" id="edit-modal">
   <div class="modal-box">
     <div class="modal-title">EDIT ITEM</div>
@@ -731,7 +725,6 @@
   </div>
 </div>
 
-<!-- FIREBASE (STABLE VERSION) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
@@ -785,25 +778,13 @@ function addItem(type) {
     alert('Please login first');
     return;
   }
-
-  const name = prompt('Title:');
-  if (!name) return;
-
-  const meta = prompt('Details:') || '';
-  const url = prompt('URL (optional):') || '';
-
-  db.collection(type).add({
-    name: name,
-    meta: meta,
-    url: url,
-    status: 'current',
-    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => {
-    console.log('Item added successfully');
-  }).catch((error) => {
-    console.error('Error adding item:', error);
-    alert('Error adding item');
-  });
+  
+  // Set editRef to null ID to indicate a new addition
+  editRef = { type: type, id: null };
+  document.getElementById('edit-name').value = '';
+  document.getElementById('edit-meta').value = '';
+  document.getElementById('edit-url').value = '';
+  document.getElementById('edit-modal').classList.add('active');
 }
 
 // ── DELETE ITEM ──
@@ -834,16 +815,40 @@ function openEdit(type, id, data) {
 function saveEdit() {
   if (!editRef) return;
   
-  db.collection(editRef.type).doc(editRef.id).update({
+  const data = {
     name: document.getElementById('edit-name').value,
     meta: document.getElementById('edit-meta').value,
-    url: document.getElementById('edit-url').value
-  }).then(() => {
-    closeModal();
-  }).catch((error) => {
-    console.error('Error updating item:', error);
-    alert('Error updating item');
-  });
+    url: document.getElementById('edit-url').value,
+    status: 'current' // Default status for new items
+  };
+
+  if (!data.name) {
+    alert('Title is required');
+    return;
+  }
+
+  if (editRef.id) {
+    // If ID exists, update
+    db.collection(editRef.type).doc(editRef.id).update({
+      name: data.name,
+      meta: data.meta,
+      url: data.url
+    }).then(() => {
+      closeModal();
+    }).catch((error) => {
+      console.error('Error updating item:', error);
+      alert('Error updating item');
+    });
+  } else {
+    // If no ID exists, add a new document
+    data.timestamp = firebase.firestore.FieldValue.serverTimestamp();
+    db.collection(editRef.type).add(data).then(() => {
+      closeModal();
+    }).catch((error) => {
+      console.error('Error adding item:', error);
+      alert('Error adding item');
+    });
+  }
 }
 
 function closeModal() {
@@ -872,29 +877,28 @@ function openURL(url) {
 
 // ── RENDER ITEMS ──
 function listen(type) {
-  db.collection(type).orderBy('timestamp', 'desc').onSnapshot((snapshot) => {
+  // Fix applied: Removed .orderBy() to stop the Firebase missing index crash
+  db.collection(type).onSnapshot((snapshot) => {
+    
+    // Convert snapshot to array so we can sort client-side safely
+    const docs = [];
+    snapshot.forEach((doc) => {
+      docs.push({ ...doc.data(), id: doc.id });
+    });
+
+    // Client-side sort fix
+    docs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
     const groups = { current: [], completed: [], next: [] };
 
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const status = data.status || 'current';
-      groups[status].push({ ...data, id: doc.id });
+    docs.forEach((item) => {
+      const status = item.status || 'current';
+      groups[status].push(item);
     });
 
     ['current', 'completed', 'next'].forEach((status) => {
       const container = document.getElementById(`${type}-${status}`);
       const items = groups[status];
-
-      const tagMap = {
-        current: 'now',
-        completed: 'done',
-        next: 'next'
-      };
-      const tagText = {
-        current: type === 'games' ? 'PLAYING' : 'WATCHING',
-        completed: 'DONE',
-        next: 'NEXT'
-      };
       const itemClass = `item-${status}`;
 
       if (items.length === 0) {
@@ -902,6 +906,7 @@ function listen(type) {
         return;
       }
 
+      // Reused exact HTML rendering logic from index.html
       container.innerHTML = '<div class="list-grid">' + items.map((item, i) => {
         const escapedData = JSON.stringify(item).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         return `
