@@ -601,7 +601,7 @@
 </head>
 <body>
 
-<button class="auth-btn" id="auth-btn" onclick="toggleAuth()">LOGIN</button>
+<button class="auth-btn" id="auth-btn">LOGIN</button>
 
 <section class="hero">
   <div class="status-pill">● ONLINE</div>
@@ -727,6 +727,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
 <script>
 
@@ -738,43 +739,55 @@ firebase.initializeApp({
 });
 
 const db = firebase.firestore();
+const auth = firebase.auth();
+let isAuthenticated = false; // Used to block functions for non-logged in users
 
 // ── AUTHENTICATION ──
-const PASSWORD = "ookamisama"; // Change this to your own password
 
-function checkAuth() {
-  const isLoggedIn = localStorage.getItem('auth') === 'true';
-  if (isLoggedIn) {
-    document.body.classList.add('edit-mode');
-    document.getElementById('auth-btn').textContent = 'LOGOUT';
-    document.getElementById('auth-btn').classList.add('logged-in');
-  } else {
-    document.body.classList.remove('edit-mode');
-    document.getElementById('auth-btn').textContent = 'LOGIN';
-    document.getElementById('auth-btn').classList.remove('logged-in');
-  }
-  return isLoggedIn;
+function login() {
+  const email = prompt("Enter email:");
+  if (!email) return; // Exit if user cancels
+
+  const password = prompt("Enter password:");
+  if (!password) return;
+
+  auth.signInWithEmailAndPassword(email, password)
+    .then(() => {
+      alert("Logged in!");
+    })
+    .catch(err => {
+      alert("Error: " + err.message);
+    });
 }
 
-function toggleAuth() {
-  const isLoggedIn = localStorage.getItem('auth') === 'true';
-  if (isLoggedIn) {
-    localStorage.setItem('auth', 'false');
-    checkAuth();
-  } else {
-    const password = prompt('Enter password:');
-    if (password === PASSWORD) {
-      localStorage.setItem('auth', 'true');
-      checkAuth();
-    } else if (password !== null) {
-      alert('Incorrect password');
-    }
-  }
+function logout() {
+  auth.signOut();
+  alert("Logged out");
 }
+
+// TRACK LOGIN STATE & UPDATE UI
+auth.onAuthStateChanged(user => {
+  const btn = document.getElementById("auth-btn");
+  isAuthenticated = !!user;
+
+  if (user) {
+    // User is logged in
+    btn.innerText = "LOGOUT";
+    btn.onclick = logout;
+    btn.classList.add('logged-in');
+    document.body.classList.add('edit-mode'); // Shows edit buttons via CSS
+  } else {
+    // User is logged out
+    btn.innerText = "LOGIN";
+    btn.onclick = login;
+    btn.classList.remove('logged-in');
+    document.body.classList.remove('edit-mode'); // Hides edit buttons via CSS
+  }
+});
 
 // ── ADD ITEM ──
 function addItem(type) {
-  if (!checkAuth()) {
+  if (!isAuthenticated) {
     alert('Please login first');
     return;
   }
@@ -789,7 +802,7 @@ function addItem(type) {
 
 // ── DELETE ITEM ──
 function deleteItem(type, id) {
-  if (!checkAuth()) return;
+  if (!isAuthenticated) return;
   
   if (confirm('Delete this item?')) {
     db.collection(type).doc(id).delete().catch((error) => {
@@ -803,7 +816,7 @@ function deleteItem(type, id) {
 let editRef = null;
 
 function openEdit(type, id, data) {
-  if (!checkAuth()) return;
+  if (!isAuthenticated) return;
   
   editRef = { type: type, id: id };
   document.getElementById('edit-name').value = data.name || '';
@@ -858,7 +871,7 @@ function closeModal() {
 
 // ── CHANGE STATUS ──
 function changeStatus(type, id, status) {
-  if (!checkAuth()) return;
+  if (!isAuthenticated) return;
   
   db.collection(type).doc(id).update({
     status: status
@@ -877,7 +890,6 @@ function openURL(url) {
 
 // ── RENDER ITEMS ──
 function listen(type) {
-  // Fix applied: Removed .orderBy() to stop the Firebase missing index crash
   db.collection(type).onSnapshot((snapshot) => {
     
     // Convert snapshot to array so we can sort client-side safely
@@ -950,7 +962,6 @@ function switchTab(type, tab, button) {
 }
 
 // ── INIT ──
-checkAuth();
 listen('games');
 listen('anime');
 
