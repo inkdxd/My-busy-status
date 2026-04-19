@@ -6,14 +6,15 @@
 <title>Player Status</title>
 
 <style>
+/* ===== BACKGROUND ===== */
 body {
   margin:0;
-  font-family: 'Segoe UI', sans-serif;
-  background:#020617;
+  font-family:'Segoe UI',sans-serif;
   color:#fff;
+  background: radial-gradient(circle at top, #0f172a, #020617);
 }
 
-/* background grid */
+/* grid effect */
 body::before {
   content:"";
   position:fixed;
@@ -25,21 +26,47 @@ body::before {
   z-index:-1;
 }
 
+/* ===== HEADER ===== */
+.header {
+  text-align:center;
+  padding:40px;
+}
+
+.header h1 {
+  font-size:42px;
+}
+
+.header span {
+  color:#00ffc8;
+}
+
+/* ===== CONTAINER ===== */
 .container {
   max-width:1000px;
   margin:auto;
   padding:20px;
 }
 
-h1 {
-  text-align:center;
+/* ===== BUTTONS ===== */
+button {
+  background:#111;
+  border:1px solid #333;
+  color:#fff;
+  padding:6px 10px;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+button:hover {
+  border-color:#00ffc8;
   color:#00ffc8;
 }
 
+/* ===== TABS ===== */
 .tabs {
   display:flex;
   gap:10px;
-  margin:15px 0;
+  margin:10px 0;
 }
 
 .tab {
@@ -53,20 +80,23 @@ h1 {
   color:#00ffc8;
 }
 
+/* ===== CARDS ===== */
 .list-item {
+  background:#111;
+  border:1px solid #333;
+  padding:12px;
+  margin:10px 0;
   display:flex;
   justify-content:space-between;
-  border:1px solid #333;
-  padding:10px;
-  margin:8px 0;
-  background:#111;
+  border-radius:8px;
 }
 
-button {
-  margin-left:5px;
-  cursor:pointer;
+.item-meta {
+  font-size:12px;
+  color:#aaa;
 }
 
+/* ===== MODAL ===== */
 .modal {
   position:fixed;
   inset:0;
@@ -82,13 +112,15 @@ button {
   background:#111;
   padding:20px;
   border-radius:8px;
+  width:300px;
 }
 
 .box input {
   width:100%;
   margin-bottom:10px;
-  padding:6px;
+  padding:8px;
   background:#222;
+  border:1px solid #444;
   color:#fff;
 }
 </style>
@@ -96,14 +128,16 @@ button {
 
 <body>
 
-<div class="container">
+<div class="header">
+  <h1>I'm <span>Gaming</span> Right Now</h1>
+</div>
 
-<h1>🎮 Player Status</h1>
+<div class="container">
 
 <button onclick="toggleAuth()" id="auth-btn">LOGIN</button>
 
-<h2>Games</h2>
-<button onclick="addItem('games')">+ Add</button>
+<h2>🎮 Games</h2>
+<button onclick="addItem('games')">+ Add Game</button>
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('games','current',this)">Playing</div>
@@ -115,8 +149,8 @@ button {
 <div id="games-completed" style="display:none"></div>
 <div id="games-next" style="display:none"></div>
 
-<h2>Anime</h2>
-<button onclick="addItem('anime')">+ Add</button>
+<h2>📺 Anime</h2>
+<button onclick="addItem('anime')">+ Add Anime</button>
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('anime','current',this)">Watching</div>
@@ -141,13 +175,13 @@ button {
   </div>
 </div>
 
-<!-- FIREBASE STABLE -->
+<!-- FIREBASE (STABLE VERSION) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
 <script>
 
-// FIREBASE CONFIG
+// INIT FIREBASE
 firebase.initializeApp({
   apiKey: "AIzaSyC7ON_TBagCxp4YHsTI2v6mWhK81f4f_Yo",
   authDomain: "my-busy-life-status.firebaseapp.com",
@@ -157,13 +191,13 @@ firebase.initializeApp({
 const db = firebase.firestore();
 
 // PASSWORD
-const PASSWORD = "ookamisama";
+const PASSWORD="ookamisama";
 
 function toggleAuth(){
-  const p = prompt("Password:");
-  if(p === PASSWORD){
+  const p=prompt("Password:");
+  if(p===PASSWORD){
     localStorage.setItem("auth","true");
-    document.getElementById("auth-btn").innerText = "LOGOUT";
+    document.getElementById("auth-btn").innerText="LOGOUT";
   }
 }
 
@@ -175,13 +209,15 @@ function isAuth(){
 function addItem(type){
   if(!isAuth()) return alert("Login first");
 
-  const name = prompt("Name");
+  const name=prompt("Name");
   if(!name) return;
 
-  const meta = prompt("Details") || "";
-  const url = prompt("URL") || "";
+  const meta=prompt("Details")||"";
+  const url=prompt("URL")||"";
 
-  db.collection(type).add({name, meta, url, status:"current"});
+  db.collection(type).add({
+    name, meta, url, status:"current"
+  });
 }
 
 // DELETE
@@ -194,17 +230,17 @@ let editRef=null;
 
 function openEdit(type,id,data){
   editRef={type,id};
-  document.getElementById("edit-name").value=data.name;
-  document.getElementById("edit-meta").value=data.meta;
-  document.getElementById("edit-url").value=data.url;
+  edit-name.value=data.name;
+  edit-meta.value=data.meta;
+  edit-url.value=data.url;
   modal.classList.add("active");
 }
 
 function saveEdit(){
   db.collection(editRef.type).doc(editRef.id).update({
-    name: edit-name.value,
-    meta: edit-meta.value,
-    url: edit-url.value
+    name:edit-name.value,
+    meta:edit-meta.value,
+    url:edit-url.value
   });
   closeModal();
 }
@@ -237,7 +273,7 @@ function listen(type){
         <div class="list-item">
           <div onclick="${item.url?`window.open('${item.url}')`:''}">
             <b>${item.name}</b><br>
-            <small>${item.meta}</small>
+            <span class="item-meta">${item.meta}</span>
           </div>
 
           <div>
@@ -260,6 +296,7 @@ function switchTab(type,tab,el){
   ["current","completed","next"].forEach(s=>{
     document.getElementById(`${type}-${s}`).style.display="none";
   });
+
   document.getElementById(`${type}-${tab}`).style.display="block";
 
   el.parentElement.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
